@@ -1,0 +1,106 @@
+APPNAME = 'ember-skeleton'
+
+require 'json'
+require 'rake-pipeline-web-filters'
+
+WebFilters = Rake::Pipeline::Web::Filters
+
+class LoaderFilter < WebFilters::MinispadeFilter
+  def generate_output(inputs, output)
+    inputs.each do |input|
+      code = input.read
+      module_id = @module_id_generator.call(input)
+      contents = "function(require) {\n#{code}\n}"
+      ret = "\nloader.register('#{module_id}', #{contents});\n"
+      output.write ret
+    end
+  end
+end
+
+class EmberAssertFilter < Filter
+  def generate_output(inputs, output)
+    inputs.each do |input|
+      result = input.read
+      result.gsub!(/ember_assert\((.*)\);/, '')
+      output.write(result)
+    end
+  end
+end
+
+class HandlebarsFilter < Filter
+  def generate_output(inputs, output)
+    inputs.each do |input|
+      code = input.read.to_json
+      name = File.basename(input.path, '.handlebars')
+      output.write "\nreturn Ember.Handlebars.compile(#{code});\n"
+    end
+  end
+end
+
+input  'app'
+output 'assets'
+
+match 'lib/**/*.js' do
+  filter LoaderFilter,
+    :module_id_generator => proc { |input|
+      input.path.sub(/^lib\//, "#{APPNAME}/").sub(/\.js$/, '')
+    }
+
+  if ENV['RAKEP_MODE'] == 'production'
+    filter EmberAssertFilter
+    uglify
+  end
+  concat 'app.js'
+end
+
+match 'vendor/**/*.js' do
+  filter LoaderFilter,
+    :module_id_generator => proc { |input|
+      input.path.sub(/^vendor\//, '').sub(/\.js$/, '')
+    }
+
+  if ENV['RAKEP_MODE'] == 'production'
+    filter EmberAssertFilter
+    uglify
+  end
+  concat %w[
+    vendor/jquery.js
+    vendor/ember.js
+    vendor/sproutcore-routing.js
+  ], 'app.js'
+end
+
+match 'templates/**/*.handlebars' do
+  filter HandlebarsFilter
+  filter LoaderFilter,
+    :module_id_generator => proc { |input|
+      input.path.sub(/^templates\//, "#{APPNAME}/~templates/").sub(/\.handlebars$/, '')
+    }
+  if ENV['RAKEP_MODE'] == 'production'
+    uglify
+  end
+  concat 'app.js'
+end
+
+match 'css/**/*.css' do
+  if ENV['RAKEP_MODE'] == 'production'
+    yui_css
+  end
+  concat ['bootstrap.css', 'main.css'], 'app.css'
+end
+
+match 'css/**/*.scss' do
+  sass
+  if ENV['RAKEP_MODE'] == 'production'
+    yui_css
+  end
+  concat 'app.css'
+end
+
+match "static/**/*" do
+  concat do |input|
+    input.sub(/static\//, '')
+  end
+end
+
+# vim: filetype=ruby
