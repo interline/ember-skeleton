@@ -2,6 +2,7 @@ source "http://rubygems.org"
 
 gem "rack"
 gem "rack-rewrite"
+# gem "rack-streaming-proxy"
 
 gem "sass"
 gem "compass"
