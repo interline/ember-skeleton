@@ -37,69 +37,88 @@ class HandlebarsFilter < Filter
   end
 end
 
-input  'app'
 output 'assets'
 
-match 'lib/**/*.js' do
-  filter LoaderFilter,
-    :module_id_generator => proc { |input|
-      input.path.sub(/^lib\//, "#{APPNAME}/").sub(/\.js$/, '')
-    }
+input 'app' do
+  match 'lib/**/*.js' do
+    filter LoaderFilter,
+      :module_id_generator => proc { |input|
+        input.path.sub(/^lib\//, "#{APPNAME}/").sub(/\.js$/, '')
+      }
 
-  if ENV['RAKEP_MODE'] == 'production'
-    filter EmberAssertFilter
-    uglify
+    if ENV['RAKEP_MODE'] == 'production'
+      filter EmberAssertFilter
+      uglify {|input| input}
+    end
+    concat 'app.js'
   end
-  concat 'app.js'
-end
 
-match 'vendor/**/*.js' do
-  filter LoaderFilter,
-    :module_id_generator => proc { |input|
-      input.path.sub(/^vendor\//, '').sub(/\.js$/, '')
-    }
+  match 'vendor/**/*.js' do
+    filter LoaderFilter,
+      :module_id_generator => proc { |input|
+        input.path.sub(/^vendor\//, '').sub(/\.js$/, '')
+      }
 
-  if ENV['RAKEP_MODE'] == 'production'
-    filter EmberAssertFilter
-    uglify
+    if ENV['RAKEP_MODE'] == 'production'
+      filter EmberAssertFilter
+      uglify {|input| input}
+    end
+    concat %w[
+      vendor/jquery.js
+      vendor/ember.js
+      vendor/ember-data.js
+      vendor/sproutcore-routing.js
+    ], 'app.js'
   end
-  concat %w[
-    vendor/jquery.js
-    vendor/ember.js
-    vendor/sproutcore-routing.js
-  ], 'app.js'
-end
 
-match 'templates/**/*.handlebars' do
-  filter HandlebarsFilter
-  filter LoaderFilter,
-    :module_id_generator => proc { |input|
-      input.path.sub(/^templates\//, "#{APPNAME}/~templates/").sub(/\.handlebars$/, '')
-    }
-  if ENV['RAKEP_MODE'] == 'production'
-    uglify
+  match 'modules/**/*.js' do
+    if ENV['RAKEP_MODE'] == 'production'
+      filter EmberAssertFilter
+      uglify {|input| input}
+    end
+    concat 'app.js'
   end
-  concat 'app.js'
-end
 
-match 'css/**/*.css' do
-  if ENV['RAKEP_MODE'] == 'production'
-    yui_css
+  match 'plugins/**/*.js' do
+    if ENV['RAKEP_MODE'] == 'production'
+      uglify {|input| input}
+    end
+    concat do |input|
+      input.sub(/plugins\//, '')
+    end
   end
-  concat ['bootstrap.css', 'main.css'], 'app.css'
-end
 
-match 'css/**/*.scss' do
-  sass
-  if ENV['RAKEP_MODE'] == 'production'
-    yui_css
+  match 'templates/**/*.handlebars' do
+    filter HandlebarsFilter
+    filter LoaderFilter,
+      :module_id_generator => proc { |input|
+        input.path.sub(/^templates\//, "#{APPNAME}/~templates/").sub(/\.handlebars$/, '')
+      }
+    if ENV['RAKEP_MODE'] == 'production'
+      uglify {|input| input}
+    end
+    concat 'app.js'
   end
-  concat 'app.css'
-end
 
-match "static/**/*" do
-  concat do |input|
-    input.sub(/static\//, '')
+  match 'css/**/*.css' do
+    if ENV['RAKEP_MODE'] == 'production'
+      yui_css
+    end
+    concat ['bootstrap.css', 'main.css'], 'app.css'
+  end
+
+  match 'css/**/*.scss' do
+    sass
+    if ENV['RAKEP_MODE'] == 'production'
+      yui_css
+    end
+    concat 'app.css'
+  end
+
+  match "static/**/*" do
+    concat do |input|
+      input.sub(/static\//, '')
+    end
   end
 end
 
