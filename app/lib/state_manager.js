@@ -1,7 +1,7 @@
 require('ember-skeleton/core');
 require('ember-skeleton/states/start');
 
-App.stateManager = Em.StateManager.create({
+App.stateManager = Ember.StateManager.create({
 
   rootElement: '#main',
   initialState: 'start',

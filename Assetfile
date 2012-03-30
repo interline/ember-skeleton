@@ -100,6 +100,14 @@ input 'app' do
     concat 'app.js'
   end
 
+  match 'tests/**/*.js' do
+    filter LoaderFilter,
+      :module_id_generator => proc { |input|
+        input.path.sub(/^lib\//, "#{APPNAME}/").sub(/\.js$/, '')
+      }
+    concat 'app-tests.js'
+  end
+
   match 'css/**/*.css' do
     if ENV['RAKEP_MODE'] == 'production'
       yui_css

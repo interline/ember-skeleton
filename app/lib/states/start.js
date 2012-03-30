@@ -1,8 +1,8 @@
 require('ember-skeleton/core');
 
-App.StartState = Em.ViewState.extend({
+App.StartState = Ember.ViewState.extend({
 
-  view: SC.View.extend({
+  view: Ember.View.extend({
     templateName: 'ember-skeleton/~templates/main_page'
   })
 

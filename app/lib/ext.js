@@ -1,4 +1,4 @@
-var get = Em.get;
+var get = Ember.get;
 
 Ember.View.reopen({
   templateForName: function(name, type) {

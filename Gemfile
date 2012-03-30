@@ -1,14 +1,19 @@
-source "http://rubygems.org"
+source :rubygems
 
-gem "rack"
-gem "rack-rewrite"
-# gem "rack-streaming-proxy"
+gem 'colored'
 
-gem "sass"
-gem "compass"
+gem 'guard'
+gem 'guard-rake'
 
-gem "uglifier"
-gem "yui-compressor"
+gem 'rack'
+gem 'rack-rewrite'
+# gem 'rack-streaming-proxy'
 
-gem "rake-pipeline", :git => "https://github.com/livingsocial/rake-pipeline.git"
-gem "rake-pipeline-web-filters", :git => "https://github.com/wycats/rake-pipeline-web-filters.git"
+gem 'sass'
+gem 'compass'
+
+gem 'uglifier'
+gem 'yui-compressor'
+
+gem 'rake-pipeline', :git => 'https://github.com/livingsocial/rake-pipeline.git'
+gem 'rake-pipeline-web-filters', :git => 'https://github.com/wycats/rake-pipeline-web-filters.git'

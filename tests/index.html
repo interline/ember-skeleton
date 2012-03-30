@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>QUnit Test Suite</title>
+  <link rel="stylesheet" href="qunit/qunit.css" />
+  <script src="qunit/qunit.js"></script>
+</head>
+<body>
+	<div id="qunit"></div>
+	<div id="qunit-fixture">test markup</div>
+  <script src="../assets/loader.js"></script>
+  <script src="../assets/app.js"></script>
+  <script src="../assets/app-tests.js"></script>
+  <script>
+    (function(QUnit) {
+      // Hack QUnit to not suck for Ember objects
+      var originalTypeOf = QUnit.jsDump.typeOf;
+      QUnit.jsDump.typeOf = function(obj) {
+        if (typeof Ember !== 'undefined' && Ember.Object.detectInstance(obj)) {
+          return 'emberObject';
+        }
+
+        return originalTypeOf.call(this, obj);
+      };
+
+      QUnit.jsDump.setParser('emberObject', function(obj) {
+        return obj.toString();
+      });
+
+      var matcher = /^tests\//, modules = loader.modules;
+      for (var name in modules) {
+        if (modules.hasOwnProperty(name)) {
+          if (matcher.test(name)) {
+            loader.require(name);
+          }
+        }
+      }
+    })(QUnit);
+  </script>
+</body>
+</html>
