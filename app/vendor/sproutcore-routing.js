@@ -5,7 +5,10 @@
 // License:   Licensed under MIT license (see license.js)
 // ==========================================================================
 
-var get = SC.get, set = SC.set;
+// Ember no longer aliases SC
+window.SC = window.SC || Ember.Namespace.create();
+
+var get = Ember.get, set = Ember.set;
 
 /**
   Wether the browser supports HTML5 history.
@@ -24,7 +27,7 @@ var supportsHashChange = ('onhashchange' in window) && (document.documentMode ==
   application are stored in a tree structure, and this is the class for the
   nodes.
 */
-var Route = SC.Object.extend(
+var Route = Ember.Object.extend(
 /** @scope Route.prototype */ {
 
   target: null,
@@ -41,7 +44,7 @@ var Route = SC.Object.extend(
     var part, nextRoute;
 
     // clone the parts array because we are going to alter it
-    parts = SC.copy(parts);
+    parts = Ember.copy(parts);
 
     if (!parts || parts.length === 0) {
       this.target = target;
@@ -84,7 +87,7 @@ var Route = SC.Object.extend(
     var part, key, route;
 
     // clone the parts array because we are going to alter it
-    parts = SC.copy(parts);
+    parts = Ember.copy(parts);
 
     // if parts is empty, we are done
     if (!parts || parts.length === 0) {
@@ -156,7 +159,7 @@ var Route = SC.Object.extend(
   SC.routes also supports HTML5 history, which uses a '/' instead of a '#'
   in the URLs, so that all your website's URLs are consistent.
 */
-var routes = SC.routes = SC.Object.create(
+var routes = SC.routes = Ember.Object.create(
   /** @scope SC.routes.prototype */{
 
   /**
@@ -339,10 +342,10 @@ var routes = SC.routes = SC.Object.create(
     @property
     @type {String}
   */
-  location: function(key, value) {
+  location: Ember.computed(function(key, value) {
     this._skipRoute = false;
     return this._extractLocation(key, value);
-  }.property(),
+  }).property(),
 
   _extractLocation: function(key, value) {
     var crumbs, encodedValue;
@@ -357,7 +360,7 @@ var routes = SC.routes = SC.Object.create(
         value = crumbs.route + crumbs.params;
       }
 
-      if (!this._skipPush && (!SC.empty(value) || (this._location && this._location !== value))) {
+      if (!this._skipPush && (!Ember.empty(value) || (this._location && this._location !== value))) {
         encodedValue = encodeURI(value);
 
         if (this.usesHistory) {
@@ -425,8 +428,6 @@ var routes = SC.routes = SC.Object.create(
           jQuery(window).bind('hashchange', hashChange);
 
         } else {
-          // we don't use a SC.Timer because we don't want
-          // a run loop to be triggered at each ping
           var invokeHashChange = function() {
             hashChange();
             setTimeout(invokeHashChange, 100);
@@ -461,13 +462,13 @@ var routes = SC.routes = SC.Object.create(
   */
   add: function(route, target, method) {
     if (!this._didSetup) {
-      SC.run.once(this, 'ping');
+      Ember.run.once(this, 'ping');
     }
 
-    if (method === undefined && SC.typeOf(target) === 'function') {
+    if (method === undefined && Ember.typeOf(target) === 'function') {
       method = target;
       target = null;
-    } else if (SC.typeOf(method) === 'string') {
+    } else if (Ember.typeOf(method) === 'string') {
       method = target[method];
     }
 
@@ -481,9 +482,9 @@ var routes = SC.routes = SC.Object.create(
     Observer of the 'location' property that calls the correct route handler
     when the location changes.
   */
-  locationDidChange: function() {
+  locationDidChange: Ember.observer(function() {
     this.trigger();
-  }.observes('location'),
+  }, 'location'),
 
   /**
     Triggers a route even if already in that route (does change the location, if it
@@ -511,7 +512,11 @@ var routes = SC.routes = SC.Object.create(
 
   getRoute: function(route, params) {
     var firstRoute = this._firstRoute;
-    if (params === null) {
+    if (firstRoute == null) {
+      return null;
+    }
+
+    if (params == null) {
       params = {};
     }
 
@@ -541,7 +546,7 @@ function hashChange(event) {
   }
 
   if (get(routes, 'location') !== loc && !routes._skipRoute) {
-    SC.run.once(function() {
+    Ember.run.once(function() {
       routes._skipPush = true;
       set(routes, 'location', loc);
       routes._skipPush = false;
@@ -559,7 +564,7 @@ function popState(event) {
     loc = loc.slice(base.length + 1, loc.length);
 
     if (get(routes, 'location') !== loc && !routes._skipRoute) {
-      SC.run.once(function() {
+      Ember.run.once(function() {
         routes._skipPush = true;
         set(routes, 'location', loc);
         routes._skipPush = false;
