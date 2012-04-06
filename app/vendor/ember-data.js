@@ -94,6 +94,7 @@ DS.RESTAdapter = DS.Adapter.extend({
     this.ajax("/" + this.pluralize(root), "POST", {
       data: data,
       success: function(json) {
+        this.sideload(store, type, json, root);
         store.didCreateRecord(model, json[root]);
       }
     });
@@ -114,7 +115,9 @@ DS.RESTAdapter = DS.Adapter.extend({
 
     this.ajax("/" + this.pluralize(root), "POST", {
       data: data,
+
       success: function(json) {
+        this.sideload(store, type, json, plural);
         store.didCreateRecords(type, models, json[plural]);
       }
     });
@@ -132,6 +135,7 @@ DS.RESTAdapter = DS.Adapter.extend({
     this.ajax(url, "PUT", {
       data: data,
       success: function(json) {
+        this.sideload(store, type, json, root);
         store.didUpdateRecord(model, json[root]);
       }
     });
@@ -150,9 +154,10 @@ DS.RESTAdapter = DS.Adapter.extend({
       return get(model, 'data');
     });
 
-    this.ajax("/" + this.pluralize(root), "POST", {
+    this.ajax("/" + this.pluralize(root) + "/bulk", "PUT", {
       data: data,
       success: function(json) {
+        this.sideload(store, type, json, plural);
         store.didUpdateRecords(models, json[plural]);
       }
     });
@@ -166,6 +171,7 @@ DS.RESTAdapter = DS.Adapter.extend({
 
     this.ajax(url, "DELETE", {
       success: function(json) {
+        if (json) { this.sideload(store, type, json); }
         store.didDeleteRecord(model);
       }
     });
@@ -184,9 +190,10 @@ DS.RESTAdapter = DS.Adapter.extend({
       return get(model, 'id');
     });
 
-    this.ajax("/" + this.pluralize(root) + "/delete", "POST", {
+    this.ajax("/" + this.pluralize(root) + "/bulk", "DELETE", {
       data: data,
       success: function(json) {
+        if (json) { this.sideload(store, type, json); }
         store.didDeleteRecords(models);
       }
     });
@@ -200,6 +207,7 @@ DS.RESTAdapter = DS.Adapter.extend({
     this.ajax(url, "GET", {
       success: function(json) {
         store.load(type, json[root]);
+        this.sideload(store, type, json, root);
       }
     });
   },
@@ -211,6 +219,7 @@ DS.RESTAdapter = DS.Adapter.extend({
       data: { ids: ids },
       success: function(json) {
         store.loadMany(type, ids, json[plural]);
+        this.sideload(store, type, json, plural);
       }
     });
   },
@@ -221,6 +230,7 @@ DS.RESTAdapter = DS.Adapter.extend({
     this.ajax("/" + plural, "GET", {
       success: function(json) {
         store.loadMany(type, json[plural]);
+        this.sideload(store, type, json, plural);
       }
     });
   },
@@ -232,6 +242,7 @@ DS.RESTAdapter = DS.Adapter.extend({
       data: query,
       success: function(json) {
         modelArray.load(json[plural]);
+        this.sideload(store, type, json, plural);
       }
     });
   },
@@ -258,9 +269,46 @@ DS.RESTAdapter = DS.Adapter.extend({
   ajax: function(url, type, hash) {
     hash.url = url;
     hash.type = type;
-    hash.dataType = "json";
+    hash.dataType = 'json';
+    hash.contentType = 'application/json';
+    hash.context = this;
+
+    if (hash.data) {
+      hash.data = JSON.stringify(hash.data);
+    }
 
     jQuery.ajax(hash);
+  },
+
+  sideload: function(store, type, json, root) {
+    var sideloadedType, mappings;
+
+    for (var prop in json) {
+      if (!json.hasOwnProperty(prop)) { continue; }
+      if (prop === root) { continue; }
+
+      sideloadedType = type.typeForAssociation(prop);
+
+      if (!sideloadedType) {
+        mappings = get(this, 'mappings');
+
+        ember_assert("Your server returned a hash with the key " + prop + " but you have no mappings", !!mappings);
+
+        sideloadedType = get(get(this, 'mappings'), prop);
+
+        ember_assert("Your server returned a hash with the key " + prop + " but you have no mapping for it", !!sideloadedType);
+      }
+
+      this.loadValue(store, sideloadedType, json[prop]);
+    }
+  },
+
+  loadValue: function(store, type, value) {
+    if (value instanceof Array) {
+      store.loadMany(type, value);
+    } else {
+      store.load(type, value);
+    }
   }
 });
 
@@ -297,27 +345,9 @@ DS.ModelArray = Ember.ArrayProxy.extend({
   // The store that created this model array.
   store: null,
 
-  // for associations, the model that this association belongs to.
-  parentModel: null,
-
   init: function() {
     set(this, 'modelCache', Ember.A([]));
     this._super();
-  },
-
-  // Overrides Ember.Array's replace method to implement
-  replace: function(index, removed, added) {
-    var parentRecord = get(this, 'parentRecord');
-    var pendingParent = parentRecord && !get(parentRecord, 'id');
-
-    added = added.map(function(item) {
-      ember_assert("You can only add items of " + (get(this, 'type') && get(this, 'type').toString()) + " to this association.", !get(this, 'type') || (get(this, 'type') === item.constructor));
-
-      if (pendingParent) { item.send('waitingOn', parentRecord); }
-      return item.get('clientId');
-    });
-
-    this._super(index, removed, added);
   },
 
   arrayDidChange: function(array, index, removed, added) {
@@ -363,6 +393,11 @@ var get = Ember.get;
 DS.FilteredModelArray = DS.ModelArray.extend({
   filterFunction: null,
 
+  replace: function() {
+    var type = get(this, 'type').toString();
+    throw new Error("The result of a client-side filter (on " + type + ") is immutable.");
+  },
+
   updateFilter: Ember.observer(function() {
     var store = get(this, 'store');
     store.updateModelArrayFilter(this, get(this, 'type'), get(this, 'filterFunction'));
@@ -378,6 +413,11 @@ var get = Ember.get, set = Ember.set;
 DS.AdapterPopulatedModelArray = DS.ModelArray.extend({
   query: null,
   isLoaded: false,
+
+  replace: function() {
+    var type = get(this, 'type').toString();
+    throw new Error("The result of a server query (on " + type + ") is immutable.");
+  },
 
   load: function(array) {
     var store = get(this, 'store'), type = get(this, 'type');
@@ -396,127 +436,44 @@ DS.AdapterPopulatedModelArray = DS.ModelArray.extend({
 
 
 (function(exports) {
+var get = Ember.get, set = Ember.set;
+
+DS.ManyArray = DS.ModelArray.extend({
+  parentRecord: null,
+
+  // Overrides Ember.Array's replace method to implement
+  replace: function(index, removed, added) {
+    var parentRecord = get(this, 'parentRecord');
+    var pendingParent = parentRecord && !get(parentRecord, 'id');
+
+    added = added.map(function(item) {
+      ember_assert("You can only add items of " + (get(this, 'type') && get(this, 'type').toString()) + " to this association.", !get(this, 'type') || (get(this, 'type') === item.constructor));
+
+      if (pendingParent) { item.send('waitingOn', parentRecord); }
+      return item.get('clientId');
+    });
+
+    this._super(index, removed, added);
+  }
+});
+
+})({});
+
+
+(function(exports) {
 })({});
 
 
 (function(exports) {
 var get = Ember.get, set = Ember.set, getPath = Ember.getPath, fmt = Ember.String.fmt;
 
-var OrderedSet = Ember.Object.extend({
-  init: function() {
-    this.clear();
-  },
-
-  clear: function() {
-    this.set('presenceSet', {});
-    this.set('list', Ember.NativeArray.apply([]));
-  },
-
-  add: function(obj) {
-    var guid = Ember.guidFor(obj),
-        presenceSet = get(this, 'presenceSet'),
-        list = get(this, 'list');
-
-    if (guid in presenceSet) { return; }
-
-    presenceSet[guid] = true;
-    list.pushObject(obj);
-  },
-
-  remove: function(obj) {
-    var guid = Ember.guidFor(obj),
-        presenceSet = get(this, 'presenceSet'),
-        list = get(this, 'list');
-
-    delete presenceSet[guid];
-    list.removeObject(obj);
-  },
-
-  isEmpty: function() {
-    return getPath(this, 'list.length') === 0;
-  },
-
-  forEach: function(fn, self) {
-    // allow mutation during iteration
-    get(this, 'list').slice().forEach(function(item) {
-      fn.call(self, item);
-    });
-  },
-
-  toArray: function() {
-    return get(this, 'list').slice();
-  }
-});
-
-/**
-  A Hash stores values indexed by keys. Unlike JavaScript's
-  default Objects, the keys of a Hash can be any JavaScript
-  object.
-
-  Internally, a Hash has two data structures:
-
-    `keys`: an OrderedSet of all of the existing keys
-    `values`: a JavaScript Object indexed by the
-      Ember.guidFor(key)
-
-  When a key/value pair is added for the first time, we
-  add the key to the `keys` OrderedSet, and create or
-  replace an entry in `values`. When an entry is deleted,
-  we delete its entry in `keys` and `values`.
-*/
-
-var Hash = Ember.Object.extend({
-  init: function() {
-    set(this, 'keys', OrderedSet.create());
-    set(this, 'values', {});
-  },
-
-  add: function(key, value) {
-    var keys = get(this, 'keys'), values = get(this, 'values');
-    var guid = Ember.guidFor(key);
-
-    keys.add(key);
-    values[guid] = value;
-
-    return value;
-  },
-
-  remove: function(key) {
-    var keys = get(this, 'keys'), values = get(this, 'values');
-    var guid = Ember.guidFor(key), value;
-
-    keys.remove(key);
-
-    value = values[guid];
-    delete values[guid];
-
-    return value;
-  },
-
-  fetch: function(key) {
-    var values = get(this, 'values');
-    var guid = Ember.guidFor(key);
-
-    return values[guid];
-  },
-
-  forEach: function(fn, binding) {
-    var keys = get(this, 'keys'),
-        values = get(this, 'values');
-
-    keys.forEach(function(key) {
-      var guid = Ember.guidFor(key);
-      fn.call(binding, key, values[guid]);
-    });
-  }
-});
-
 DS.Transaction = Ember.Object.extend({
   init: function() {
-    set(this, 'dirty', {
-      created: Hash.create(),
-      updated: Hash.create(),
-      deleted: Hash.create()
+    set(this, 'buckets', {
+      clean:   Ember.Map.create(),
+      created: Ember.Map.create(),
+      updated: Ember.Map.create(),
+      deleted: Ember.Map.create()
     });
   },
 
@@ -526,41 +483,88 @@ DS.Transaction = Ember.Object.extend({
     return store.createRecord(type, hash, this);
   },
 
-  add: function(model) {
-    var modelTransaction = get(model, 'transaction'),
+  add: function(record) {
+    // we could probably make this work if someone has a valid use case. Do you?
+    ember_assert("Once a record has changed, you cannot move it into a different transaction", !get(record, 'isDirty'));
+
+    var modelTransaction = get(record, 'transaction'),
         defaultTransaction = getPath(this, 'store.defaultTransaction');
 
     ember_assert("Models cannot belong to more than one transaction at a time.", modelTransaction === defaultTransaction);
 
-    set(model, 'transaction', this);
+    this.adoptRecord(record);
   },
 
-  modelBecameDirty: function(kind, model) {
-    var dirty = get(get(this, 'dirty'), kind),
-        type = model.constructor;
+  remove: function(record) {
+    var defaultTransaction = getPath(this, 'store.defaultTransaction');
 
-    var models = dirty.fetch(type);
-
-    models = models || dirty.add(type, OrderedSet.create());
-    models.add(model);
+    defaultTransaction.adoptRecord(record);
   },
 
-  modelBecameClean: function(kind, model) {
-    var dirty = get(get(this, 'dirty'), kind),
-        type = model.constructor,
-        defaultTransaction = getPath(this, 'store.defaultTransaction');
+  /**
+    @private
 
-    var models = dirty.fetch(type);
-    models.remove(model);
+    This method moves a record into a different transaction without the normal
+    checks that ensure that the user is not doing something weird, like moving
+    a dirty record into a new transaction.
 
-    set(model, 'transaction', defaultTransaction);
+    It is designed for internal use, such as when we are moving a clean record
+    into a new transaction when the transaction is committed.
+
+    This method must not be called unless the record is clean.
+  */
+  adoptRecord: function(record) {
+    var oldTransaction = get(record, 'transaction');
+
+    if (oldTransaction) {
+      oldTransaction.removeFromBucket('clean', record);
+    }
+
+    this.addToBucket('clean', record);
+    set(record, 'transaction', this);
+  },
+
+  modelBecameDirty: function(kind, record) {
+    this.removeFromBucket('clean', record);
+    this.addToBucket(kind, record);
+  },
+
+  /** @private */
+  addToBucket: function(kind, record) {
+    var bucket = get(get(this, 'buckets'), kind),
+        type = record.constructor;
+
+    var records = bucket.get(type);
+
+    if (!records) {
+      records = Ember.OrderedSet.create();
+      bucket.set(type, records);
+    }
+
+    records.add(record);
+  },
+
+  /** @private */
+  removeFromBucket: function(kind, record) {
+    var bucket = get(get(this, 'buckets'), kind),
+        type = record.constructor;
+
+    var records = bucket.get(type);
+    records.remove(record);
+  },
+
+  modelBecameClean: function(kind, record) {
+    this.removeFromBucket(kind, record);
+
+    var defaultTransaction = getPath(this, 'store.defaultTransaction');
+    defaultTransaction.adoptRecord(record);
   },
 
   commit: function() {
-    var dirtyMap = get(this, 'dirty');
+    var buckets = get(this, 'buckets');
 
     var iterate = function(kind, fn, binding) {
-      var dirty = get(dirtyMap, kind);
+      var dirty = get(buckets, kind);
 
       dirty.forEach(function(type, models) {
         if (models.isEmpty()) { return; }
@@ -595,6 +599,16 @@ DS.Transaction = Ember.Object.extend({
 
     var store = get(this, 'store');
     var adapter = get(store, '_adapter');
+
+    var clean = get(buckets, 'clean');
+    var defaultTransaction = get(store, 'defaultTransaction');
+
+    clean.forEach(function(type, records) {
+      records.forEach(function(record) {
+        this.remove(record);
+      }, this);
+    }, this);
+
     if (adapter && adapter.commit) { adapter.commit(store, commitDetails); }
     else { throw fmt("Adapter is either null or do not implement `commit` method", this); }
   }
@@ -605,47 +619,6 @@ DS.Transaction = Ember.Object.extend({
 
 (function(exports) {
 var get = Ember.get, set = Ember.set, getPath = Ember.getPath, fmt = Ember.String.fmt;
-
-var OrderedSet = Ember.Object.extend({
-  init: function() {
-    this.clear();
-  },
-
-  clear: function() {
-    this.set('presenceSet', {});
-    this.set('list', Ember.NativeArray.apply([]));
-  },
-
-  add: function(obj) {
-    var guid = Ember.guidFor(obj),
-        presenceSet = get(this, 'presenceSet'),
-        list = get(this, 'list');
-
-    if (guid in presenceSet) { return; }
-
-    presenceSet[guid] = true;
-    list.pushObject(obj);
-  },
-
-  remove: function(obj) {
-    var guid = Ember.guidFor(obj),
-        presenceSet = get(this, 'presenceSet'),
-        list = get(this, 'list');
-
-    delete presenceSet[guid];
-    list.removeObject(obj);
-  },
-
-  isEmpty: function() {
-    return getPath(this, 'list.length') === 0;
-  },
-
-  forEach: function(fn, self) {
-    get(this, 'list').forEach(function(item) {
-      fn.call(self, item);
-    });
-  }
-});
 
 // Implementors Note:
 //
@@ -717,7 +690,7 @@ DS.Store = Ember.Object.extend({
     var ret = modelArrays[clientId];
 
     if (!ret) {
-      ret = modelArrays[clientId] = OrderedSet.create();
+      ret = modelArrays[clientId] = Ember.OrderedSet.create();
     }
 
     return ret;
@@ -757,9 +730,11 @@ DS.Store = Ember.Object.extend({
     // NOTE: A `transaction` is specified when the
     // `transaction.createRecord` API is used.
     var record = type._create({
-      store: this,
-      transaction: transaction || get(this, 'defaultTransaction')
+      store: this
     });
+
+    transaction = transaction || get(this, 'defaultTransaction');
+    transaction.adoptRecord(record);
 
     // Extract the primary key from the `properties` hash,
     // based on the `primaryKey` for the model type.
@@ -912,7 +887,7 @@ DS.Store = Ember.Object.extend({
       else { throw fmt("Adapter is either null or does not implement `findMany` method", this); }
     }
 
-    return this.createModelArray(type, clientIds);
+    return this.createManyArray(type, clientIds);
   },
 
   findQuery: function(type, query) {
@@ -1080,8 +1055,8 @@ DS.Store = Ember.Object.extend({
     this.updateModelArrayFilter(array, type, filter);
   },
 
-  createModelArray: function(type, clientIds) {
-    var array = DS.ModelArray.create({ type: type, content: clientIds, store: this });
+  createManyArray: function(type, clientIds) {
+    var array = DS.ManyArray.create({ type: type, content: clientIds, store: this });
 
     clientIds.forEach(function(clientId) {
       var modelArrays = this.modelArraysForClientId(clientId);
@@ -1319,10 +1294,11 @@ DS.Store = Ember.Object.extend({
 
     get(this, 'recordCache')[clientId] = model = type._create({
       store: this,
-      clientId: clientId,
-      transaction: get(this, 'defaultTransaction')
+      clientId: clientId
     });
-    set(model, 'clientId', clientId);
+
+    get(this, 'defaultTransaction').adoptRecord(model);
+
     model.send('loadingData');
     return model;
   },
@@ -1335,7 +1311,6 @@ DS.Store = Ember.Object.extend({
     return this._super();
   }
 });
-
 
 })({});
 
@@ -2128,13 +2103,51 @@ DS.attr.transforms = {
 (function(exports) {
 var get = Ember.get, set = Ember.set, getPath = Ember.getPath;
 DS.Model.reopenClass({
-  typeForAssociation: function(association) {
-    var type = this.metaForProperty(association).type;
-    if (typeof type === 'string') {
-      type = getPath(this, type, false) || getPath(window, type);
-    }
-    return type;
-  }
+  typeForAssociation: function(name) {
+    return Ember.get(this, 'associationsByName')[name];
+  },
+
+  associations: Ember.computed(function() {
+    var map = Ember.Map.create();
+
+    this.eachComputedProperty(function(name, meta) {
+      if (meta.isAssociation) {
+        var type = meta.type,
+            typeList = map.get(type);
+
+        if (typeof type === 'string') {
+          type = getPath(this, type, false) || getPath(window, type);
+        }
+
+        if (!typeList) {
+          typeList = [];
+          map.set(type, typeList);
+        }
+
+        typeList.push({ name: name, kind: meta.kind });
+      }
+    });
+
+    return map;
+  }).cacheable(),
+
+  associationsByName: Ember.computed(function() {
+    var map = {}, type;
+
+    this.eachComputedProperty(function(name, meta) {
+      if (meta.isAssociation) {
+        type = meta.type;
+
+        if (typeof type === 'string') {
+          type = getPath(this, type, false) || getPath(window, type);
+        }
+
+        map[name] = type;
+      }
+    });
+
+    return map;
+  }).cacheable()
 });
 
 
@@ -2155,6 +2168,13 @@ var hasAssociation = function(type, options, one) {
   var embedded = options && options.embedded,
     findRecord = embedded ? embeddedFindRecord : referencedFindRecord;
 
+  var meta = { type: type, isAssociation: true };
+  if (one) {
+    meta.kind = 'belongsTo';
+  } else {
+    meta.kind = 'hasMany';
+  }
+
   return Ember.computed(function(key) {
     var data = get(this, 'data'), ids, id, association,
       store = get(this, 'store');
@@ -2174,7 +2194,7 @@ var hasAssociation = function(type, options, one) {
     }
 
     return association;
-  }).property('data').cacheable().meta({ type: type });
+  }).property('data').cacheable().meta(meta);
 };
 
 DS.hasMany = function(type, options) {
@@ -2183,9 +2203,11 @@ DS.hasMany = function(type, options) {
 };
 
 DS.hasOne = function(type, options) {
-  ember_assert("The type passed to DS.hasOne must be defined", !!type);
+  ember_assert("The type passed to DS.belongsTo must be defined", !!type);
   return hasAssociation(type, options, true);
 };
+
+DS.belongsTo = DS.hasOne;
 
 })({});
 
