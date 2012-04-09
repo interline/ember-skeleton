@@ -37,9 +37,13 @@ App Structure
 Testing
 -------
 
+You can test the app by invoking
+
     $ bundle exec rake test
 
-or
+This executes the tests by using [Phantom.JS](http://www.phantomjs.org/), which you need to have installed.
+
+Or you can run the tests via
 
     $ bundle exec rackup
     $ open http://localhost:9292/tests/index.html
