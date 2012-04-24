@@ -32,6 +32,9 @@ App Structure
     │   └── app.js - Built out app JS
     ├── config.ru - Rack development web server configuration
     ├── index.html - The app entry point
+    ├── tests - QUnit testing files
+    |   ├── index.html - The testing entry point
+    |   └── qunit - Testing support files
     └── tmp - Temporary build files used by rakep
 
 Testing
