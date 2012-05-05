@@ -40,7 +40,7 @@
 
   Loader.prototype.register = function(name, module) {
     if (this.exists(name)) {
-      throw "The module '"+ "' has already been registered";
+      throw "The module '"+ name + "' has already been registered";
     }
     this.modules[name] = module;
     return true;
