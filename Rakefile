@@ -27,3 +27,8 @@ task :test => :build do
     exit(1)
   end
 end
+
+desc "Automatically run tests (Mac OS X only)"
+task :autotest do
+  system("kicker -e 'rake test' app")
+end

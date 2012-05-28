@@ -9,6 +9,8 @@ gem 'rack'
 gem 'rack-rewrite'
 # gem 'rack-streaming-proxy'
 
+gem 'kicker'
+
 gem 'sass'
 gem 'compass'
 
