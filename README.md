@@ -47,3 +47,7 @@ Or you can run the tests via
 
     $ bundle exec rackup
     $ open http://localhost:9292/tests/index.html
+
+If you develop on a Mac, you can automatically execute the tests everytime a file changes via
+
+    $ bundle exec rake autotest
