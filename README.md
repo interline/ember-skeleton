@@ -47,3 +47,7 @@ Or you can run the tests via
 
     $ bundle exec rackup
     $ open http://localhost:9292/tests/index.html
+
+If you want to continuously run the tests every time a file changes, invoke:
+
+    $ bundle exec guard
