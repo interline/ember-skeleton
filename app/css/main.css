@@ -5,3 +5,7 @@ body {
 a {
   cursor: pointer;
 }
+
+.navbar .brand {
+  color: #fff;
+}

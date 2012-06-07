@@ -1,3 +1,5 @@
 require('ember-skeleton/core');
 
-App.store = DS.Store.create();
+App.store = DS.Store.create({
+  revision: 4
+});

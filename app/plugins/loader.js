@@ -9,10 +9,6 @@
     return require;
   }
 
-  var Context = function() {
-    return this;
-  };
-
   var Loader = function() {
     this.modules = {};
     this.loaded = {};
@@ -26,7 +22,7 @@
       if (module) {
         var require = requireWrapper(this);
         try {
-          this.exports[name] = module.call(new Context(), require);
+          this.exports[name] = module.call(window, require);
           return this.exports[name];
         } finally {
           this.loaded[name] = true;
@@ -40,7 +36,7 @@
 
   Loader.prototype.register = function(name, module) {
     if (this.exists(name)) {
-      throw "The module '"+ "' has already been registered";
+      throw "The module '" + name + "' has already been registered";
     }
     this.modules[name] = module;
     return true;

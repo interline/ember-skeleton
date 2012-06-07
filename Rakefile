@@ -14,7 +14,7 @@ task :test => :build do
     abort "PhantomJS is not installed. Download from http://phantomjs.org/"
   end
 
-  cmd = "phantomjs tests/qunit/run-qunit.js \"file://#{File.dirname(__FILE__)}/tests/index.html\""
+  cmd = "phantomjs tests/run-tests.js \"file://#{File.dirname(__FILE__)}/tests/index.html\""
 
   # Run the tests
   puts "Running #{APPNAME} tests"

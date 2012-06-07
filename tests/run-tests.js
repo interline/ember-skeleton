@@ -2,7 +2,7 @@
 
 var args = phantom.args;
 if (args.length < 1 || args.length > 2) {
-  console.log("Usage: " + phantom.scriptName + " <URL> <timeout>");
+  console.log("Usage: " + phantom.scriptName + " <URI> <timeout>");
   phantom.exit(1);
 }
 
@@ -13,9 +13,10 @@ page.onConsoleMessage = function(msg) {
   if (!depRe.test(msg)) console.log(msg);
 };
 
-page.open(args[0], function(status) {
+var uri = args[0];
+page.open(uri, function(status) {
   if (status !== 'success') {
-    console.error("Unable to access network");
+    console.error("Unable to access: " + uri + " [" + status + "]");
     phantom.exit(1);
   } else {
     page.evaluate(addLogging);
