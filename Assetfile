@@ -21,7 +21,7 @@ class EmberAssertFilter < Filter
   def generate_output(inputs, output)
     inputs.each do |input|
       result = input.read
-      result.gsub!(/ember_assert\((.*)\);/, '')
+      result.gsub!(%r{^(\s)*Ember\.(assert|deprecate|warn)\((.*)\).*$}, '')
       output.write(result)
     end
   end
@@ -31,7 +31,6 @@ class HandlebarsFilter < Filter
   def generate_output(inputs, output)
     inputs.each do |input|
       code = input.read.to_json
-      name = File.basename(input.path, '.handlebars')
       output.write "\nreturn Ember.Handlebars.compile(#{code});\n"
     end
   end

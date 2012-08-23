@@ -8,9 +8,9 @@ if (args.length < 1 || args.length > 2) {
 
 var page = require('webpage').create();
 
-var depRe = /^DEPRECATION:/;
+var warnRe = /^WARNING:/;
 page.onConsoleMessage = function(msg) {
-  if (!depRe.test(msg)) console.log(msg);
+  if (!warnRe.test(msg)) console.log(msg);
 };
 
 var uri = args[0];
